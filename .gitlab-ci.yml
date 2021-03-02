@@ -1,0 +1,80 @@
+# use alpine for small linux container use another image from docker hub
+image: node:12-alpine
+
+# config variable in gitlab-ci
+variables:
+  BUCKET_SOURCE : $BUCKET_SOURCE # bucket s3
+  APP_NAME : $APP_NAME # application name
+# define stages
+  
+stages:
+  - build
+  - deploy
+# - add another stage if needed
+
+
+# required to install on each stage
+before_script:
+  - apk update
+  - apk -Uuv add groff less python py-pip zip unzip curl
+  - pip install awscli && aws configure set default.region ap-southeast-1
+
+# pipeline jobs build staging
+build-staging:
+  stage: build
+  tags:
+    - bibit-gitlab-runner-manager # using gitlab runner on gitlab ci cd
+  allow_failure: false
+  script:
+    - apk add --update nodejs npm
+    - echo "Build apps"
+#    - npm install
+#    - add another script here
+  environment:
+    name: staging # define job for gitlab production
+  only:
+    - staging # git branch
+
+# pipeline jobs build production
+build-production:
+  stage: build
+  tags:
+    - gitlab-aws-autoscaler # using gitlab runner on gitlab ci cd
+  allow_failure: false
+  script:
+    - apk add --update nodejs npm
+    - echo "Build node modules"
+#    - npm install
+#    - add another script here
+  environment:
+    name: production # define job for gitlab production
+  only:
+    - master # git branch
+    
+# pipeline jobs deploy staging
+deploy-staging:
+  stage: deploy
+  tags:
+    - gitlab-runner # using gitlab runner
+  allow_failure: false
+  script:
+    - echo "example deploy to Update Lambda Function Code"
+    - updatefunction="$(aws lambda update-function-code --region ap-southeast-1 --function-name $APP_NAME --s3-bucket $BUCKET_SOURCE --s3-key $APP_NAME.tar.gz)"
+  environment:
+    name: staging # define job for gitlab production
+  only:
+    - staging # git branch
+    
+# pipeline jobs deploy production
+deploy-production:
+  stage: deploy
+  tags:
+    - gitlab-runner # using aws backend runner
+  allow_failure: false
+  script:
+    - echo "example deploy to Update Lambda Function Code"
+    - updatefunction="$(aws lambda update-function-code --region ap-southeast-1 --function-name $APP_NAME --s3-bucket $BUCKET_SOURCE --s3-key $APP_NAME.tar.gz)"
+  environment:
+    name: production # define job for gitlab production
+  only:
+    - master # git branch
